@@ -1,0 +1,29 @@
+# ---- izlaz kompajlera (regenerise se iz koda, ne ide na git) ----
+/Debug/
+/Release/
+
+# ---- objektni i pomocni fajlovi, ako se pojave van Debug/ ----
+*.o
+*.d
+*.su
+*.elf
+*.bin
+*.hex
+*.map
+*.list
+*.cyclo
+
+# ---- rezervne kopije ----
+*.bak
+*.ioc.bak
+*~
+~$*
+
+# ---- smece operativnog sistema ----
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Napomena: .project, .cproject, .settings/ i *.ioc NAMERNO ostaju na gitu -
+# bez njih se projekat ne otvara u STM32CubeIDE-u i CubeMX gubi konfiguraciju.
+# Drivers/ (HAL, 11 MB) takodje ostaje - bez njega se projekat ne moze kompajlirati.
