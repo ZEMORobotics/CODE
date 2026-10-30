@@ -45,10 +45,10 @@ extern TIM_HandleTypeDef htim7, htim2, htim3;
  *
  * Komanda regulatora je u procentima tog plafona: +100 % = CCR max napred,
  * -100 % = CCR max nazad. */
-#define MOTOR_SUPPLY_VOLTAGE_DEFAULT  30.0f
+#define MOTOR_SUPPLY_VOLTAGE_DEFAULT  34.0f
 #define MOTOR_MAX_VOLTAGE             18.0f
 #define MOTOR_SUPPLY_VOLTAGE_MIN      12.0f   /* ispod ovoga se vrednost ne prihvata */
-#define MOTOR_SUPPLY_VOLTAGE_MAX      40.0f   /* iznad ovoga se vrednost ne prihvata */
+#define MOTOR_SUPPLY_VOLTAGE_MAX      36.0f   /* iznad ovoga se vrednost ne prihvata */
 
 /* Enkoderi ---------------------------------------------------------------- */
 #define ENC_LEFT_TIMER        htim2     /* ENC1, 32-bitni brojac */

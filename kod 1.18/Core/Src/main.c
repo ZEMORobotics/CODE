@@ -69,6 +69,23 @@ volatile float meas_speed_left  = 0.0f;   /* rad/s, filtrirano */
 volatile float meas_speed_right = 0.0f;
 volatile float cmd_left  = 0.0f;          /* % maks. PWM-a, -100..+100 */
 volatile float cmd_right = 0.0f;
+volatile int sys = 0;
+
+
+
+
+
+/* ===== TEST: vozi pravo, bez ROS2 i bez ijedne CAN poruke =====
+ * 1 = test ukljucen, 0 = normalan rad preko CAN-a.
+ * PAZNJA: robot krece SAM cim se ploca upali. */
+#define TEST_DRIVE_ENABLE      0
+#define TEST_DRIVE_SPEED_RADS  5.0f   /* oba tocka isto, ~0.20 m/s */
+#define TEST_DRIVE_DELAY_MS    5000   /* koliko miruje pre polaska */
+#define TEST_DRIVE_RUN_MS      3000   /* koliko vozi, pa stane zauvek */
+
+
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -80,6 +97,39 @@ static void MPU_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+
+
+/* ===== TEST 3: cita enkoderske pinove kao obicne ulaze, bez tajmera ===== */
+volatile uint8_t  enc1_a = 0, enc1_b = 0, enc2_a = 0, enc2_b = 0;
+volatile uint32_t enc1_edges = 0, enc2_edges = 0;
+
+static void test_enc_pins_init(void)
+{
+    GPIO_InitTypeDef g = {0};
+    g.Mode  = GPIO_MODE_INPUT;
+    g.Pull  = GPIO_PULLUP;
+    g.Speed = GPIO_SPEED_FREQ_LOW;
+    g.Pin = ENC1_A_Pin; HAL_GPIO_Init(ENC1_A_GPIO_Port, &g);
+    g.Pin = ENC1_B_Pin; HAL_GPIO_Init(ENC1_B_GPIO_Port, &g);
+    g.Pin = ENC2_A_Pin; HAL_GPIO_Init(ENC2_A_GPIO_Port, &g);
+    g.Pin = ENC2_B_Pin; HAL_GPIO_Init(ENC2_B_GPIO_Port, &g);
+}
+
+static void test_enc_pins_task(void)
+{
+    static uint8_t a1_prev = 0xFF, a2_prev = 0xFF;
+
+    enc1_a = (HAL_GPIO_ReadPin(ENC1_A_GPIO_Port, ENC1_A_Pin) == GPIO_PIN_SET);
+    enc1_b = (HAL_GPIO_ReadPin(ENC1_B_GPIO_Port, ENC1_B_Pin) == GPIO_PIN_SET);
+    enc2_a = (HAL_GPIO_ReadPin(ENC2_A_GPIO_Port, ENC2_A_Pin) == GPIO_PIN_SET);
+    enc2_b = (HAL_GPIO_ReadPin(ENC2_B_GPIO_Port, ENC2_B_Pin) == GPIO_PIN_SET);
+
+    if (enc1_a != a1_prev) { a1_prev = enc1_a; enc1_edges++; }
+    if (enc2_a != a2_prev) { a2_prev = enc2_a; enc2_edges++; }
+}
+
+
 
 /* ===========================================================================
  *  KONTROLNA PETLJA - TIM7 @ CONTROL_FREQ_HZ (500 Hz)
@@ -93,6 +143,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
     static uint16_t feedback_div = 0;
     static uint16_t alive_div = 0;
+    sys++;
 
     odometry_update();                       /* razlika brojaca -> rad/s (+ filter) */
     meas_speed_left  = get_wheel_speed_left();
@@ -124,6 +175,41 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
 }
 
+
+
+
+
+#if TEST_DRIVE_ENABLE
+/* Upisuje istu referencu u oba tocka. Regulator, odometrija, filteri i PWM
+ * rade potpuno normalno - menja se samo odakle referenca dolazi. */
+static void test_drive_task(void)
+{
+    static bool     started = false;
+    static uint32_t t_start = 0;
+
+    if (!started) {
+        started = true;
+        t_start = HAL_GetTick();
+    }
+
+    uint32_t dt = HAL_GetTick() - t_start;
+
+    if (dt < TEST_DRIVE_DELAY_MS) {
+        can_ref_speed_left  = 0.0f;                    /* miruj, skloni se */
+        can_ref_speed_right = 0.0f;
+    } else if (dt < (uint32_t)(TEST_DRIVE_DELAY_MS + TEST_DRIVE_RUN_MS)) {
+        can_ref_speed_left  = TEST_DRIVE_SPEED_RADS;   /* vozi pravo */
+        can_ref_speed_right = TEST_DRIVE_SPEED_RADS;
+    } else {
+        can_ref_speed_left  = 0.0f;                    /* gotovo */
+        can_ref_speed_right = 0.0f;
+    }
+}
+#endif
+
+
+
+
 /* USER CODE END 0 */
 
 /**
@@ -138,7 +224,7 @@ int main(void)
   /* USER CODE END 1 */
 
   /* MPU Configuration--------------------------------------------------------*/
-  MPU_Config();
+    MPU_Config();
 
   /* MCU Configuration--------------------------------------------------------*/
 
@@ -188,6 +274,12 @@ int main(void)
    * Kad se doda ADC: PWM_SetSupplyVoltage(ADC_ReadVbat()) pre PWM_Init(). */
   PWM_Init();
   encoder_init();
+
+
+
+//  test_enc_pins_init();   /* preuzima pinove od tajmera, cita ih kao ulaze */
+
+
   odometry_init();
 
   can_comm_init();
@@ -202,6 +294,12 @@ int main(void)
   while (1)
   {
       can_comm_task();   /* feedback 100 Hz, IR burst, timeout komande */
+      test_enc_pins_task();
+
+
+#if TEST_DRIVE_ENABLE
+      test_drive_task(); /* mora POSLE can_comm_task() */
+#endif
 
     /* USER CODE END WHILE */
 

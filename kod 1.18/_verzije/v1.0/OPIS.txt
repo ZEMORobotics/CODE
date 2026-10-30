@@ -1,0 +1,57 @@
+===========================================================================
+ VERZIJA 1.0
+ Snimljeno: 30.10.2026.
+===========================================================================
+
+STANJE: enkoderi RADE, potvrdjeno na robotu.
+
+Ovo je prvo stanje u kome je cio lanac dokazano ispravan:
+  - flesovanje stize na cip (provereno promenom brzine ALIVE diode)
+  - oba enkoderska tajmera imaju takt
+  - oba su u enkoderskom rezimu 3 (SMCR = 3)
+  - brojaci reaguju na okretanje tockova
+
+---------------------------------------------------------------------------
+ STA JE U OVOJ VERZIJI
+---------------------------------------------------------------------------
+
+Upravljanje:
+  - sve brzine u rad/s, nema mm/s nigde
+  - pozicioni PID po tocku: P + I sa anti-windup-om + filtrirani D clan
+  - jedan zajednicki skup koeficijenata za oba tocka
+  - Kp 5.7, Ki 0.118, Kd 0
+  - niskopropusni filter na izmerenoj brzini (30 Hz) i na D clanu (20 Hz)
+  - odometrija (x, y, ugao) ISKLJUCENA, radi je ros2
+
+Motori:
+  - napon napajanja 34 V, granica na motoru 18 V
+  - plafon ispune 52.94 %, CCR max 1355 od 2560
+
+CAN:
+  - ID-jevi dekadni 100..152, identicni ros2 enum-u CanID
+  - provera NaN/Inf na svakom float-u sa magistrale
+  - zadata brzina odsecena na +-60 rad/s
+
+Enkoderi (ovo je popravka zbog koje v1.0 postoji):
+  - encoders.c sam postavlja enkoderski rezim upisom u registre
+    (SMCR = 3, CCMR1 = 0x0101, CC1E/CC2E), ne oslanja se na tim.c
+  - pinovi dobijaju pull-up, CubeMX ih ostavlja na GPIO_NOPULL
+  - dijagnosticke promenljive: dbg_rcc_tim2, dbg_rcc_tim3,
+    dbg_smcr2_pre, dbg_smcr2_post, dbg_smcr3_post
+
+U main.c:
+  - test voznje TEST_DRIVE_* (ukljucuje se sa TEST_DRIVE_ENABLE)
+  - ostaci testa pinova, test_enc_pins_init / test_enc_pins_task
+
+---------------------------------------------------------------------------
+ KAKO SE VRACA
+---------------------------------------------------------------------------
+
+Reci Claude-u: "vrati mi na verziju 1".
+
+Rucno:
+  Kopiraj sadrzaj foldera _verzije/v1.0/Core preko Core u projektu,
+  i _verzije/v1.0/KOD eurobot.ioc preko istog fajla u korenu projekta.
+  Zatim u CubeIDE: Project -> Clean, pa Build.
+
+NAPOMENA: folder Core/Startup nije u snimku jer ga niko ne menja.

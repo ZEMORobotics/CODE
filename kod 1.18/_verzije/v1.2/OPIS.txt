@@ -1,0 +1,81 @@
+===========================================================================
+ VERZIJA 1.2
+ Snimljeno: 30.10.2026.
+ Nastala iz: v1.1
+===========================================================================
+
+STANJE: ukljucen prekid za FDCAN. Prijem CAN poruka ranije NIJE radio.
+
+NIJE jos provereno na robotu - snimljeno odmah posle izmene.
+Ako se nesto poremeti, tacka povratka je v1.1.
+
+---------------------------------------------------------------------------
+ STA JE BIO PROBLEM
+---------------------------------------------------------------------------
+
+U CubeMX-u nije bio cekiran NVIC za FDCAN1. Posledica je bio cio lanac:
+
+  - stm32h7xx_it.c nema FDCAN1_IT0_IRQHandler
+  - fdcan.c nema nijedan HAL_NVIC_EnableIRQ
+  - HAL_FDCAN_IRQHandler se nikad ne poziva
+  - HAL_FDCAN_RxFifo0Callback se nikad ne poziva
+  - linker (--gc-sections) ih je obrisao, zajedno sa process_msg
+    i svim dbg_can_rx_* promenljivama
+
+Prakticno: poruke stizu u hardverski FIFO ploce, ali ih niko ne cita.
+To se videlo i u Live Expressions - promenljive iz process_msg su
+javljale "Failed to evaluate expression" jer ih u programu nije ni bilo.
+
+---------------------------------------------------------------------------
+ RAZLIKA U ODNOSU NA v1.1
+---------------------------------------------------------------------------
+
+Menjan je samo jedan fajl: Core/Src/Lib/can_comm.c
+Dve izmene:
+
+1. Dodata prekidna rutina, iznad HAL_FDCAN_RxFifo0Callback:
+
+       void FDCAN1_IT0_IRQHandler(void)
+       {
+           HAL_FDCAN_IRQHandler(&hfdcan1);
+       }
+
+   Namerno stoji u nasem fajlu, a ne u stm32h7xx_it.c, da prezivi
+   regeneraciju CubeMX-a.
+
+2. U can_comm_init(), odmah iza HAL_FDCAN_Start():
+
+       HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 5, 0);
+       HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
+
+   Prioritet 5 je nizi od TIM7 (0), pa prijem CAN-a ne prekida regulaciju.
+
+---------------------------------------------------------------------------
+ PROVERENO
+---------------------------------------------------------------------------
+
+Ceo projekat je kompajliran i slinkovan. Posle izmene simboli prezivljavaju
+--gc-sections:
+
+    FDCAN1_IT0_IRQHandler      0x08000f78
+    HAL_FDCAN_RxFifo0Callback  0x08000f8c
+    dbg_can_rx_total           0x240000fc
+    dbg_can_last_id            0x24000100
+
+Pre izmene ovih prva tri nije bilo u programu.
+
+---------------------------------------------------------------------------
+ STA PROVERITI NA ROBOTU
+---------------------------------------------------------------------------
+
+    dbg_can_rx_total   mora da POSTOJI i da raste kad nesto salje
+    dbg_can_last_id    treba 100 za zadatu brzinu
+    dbg_can_tec        0 je zdravo; raste ka 255 = niko ne potvrdjuje
+
+Bit rate je 500 kbit/s (jezgro 40 MHz, prescaler 4, Seg1 15, Seg2 4).
+
+---------------------------------------------------------------------------
+ KAKO SE VRACA
+---------------------------------------------------------------------------
+
+Reci Claude-u: "vrati mi na verziju 1.1"  (stanje pre ove ispravke)

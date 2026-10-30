@@ -15,10 +15,26 @@ extern pid_gains_t wheel_gains;  /* zajednicki koeficijenti oba tocka */
 volatile float can_ref_speed_left  = 0.0f;
 volatile float can_ref_speed_right = 0.0f;
 volatile bool  can_motors_on    = true;
-volatile bool  can_feedback_on  = false;   /* po defaultu ne saljemo nazad */
+volatile bool  can_feedback_on  = true;    /* saljemo odmah po paljenju */
 volatile bool  can_reference_on = true;
 volatile float can_kp_rot = 0.0f, can_ki_rot = 0.0f, can_kd_rot = 0.0f;
 volatile uint8_t can_cinch_state = 0;
+
+/* ================= CAN dijagnostika (vidljivo u Live Expressions) =========
+ * Dodato u verziji 1.1. Ne utice na rad, samo belezi sta se desava. */
+volatile uint32_t dbg_can_rx_total  = 0;   /* ukupno primljenih poruka        */
+volatile uint32_t dbg_can_last_id   = 0;   /* ID poslednje primljene          */
+volatile uint32_t dbg_can_last_len  = 0;   /* duzina poslednje, u bajtovima   */
+volatile uint8_t  dbg_can_last_data[8] = {0};
+volatile uint32_t dbg_can_last_ms   = 0;   /* HAL_GetTick kad je stigla       */
+volatile uint32_t dbg_can_cmd_count = 0;   /* koliko puta je stigla 100       */
+volatile uint32_t dbg_can_tx_ok     = 0;   /* uspesno ubaceno u TX FIFO       */
+volatile uint32_t dbg_can_tx_full   = 0;   /* odbijeno, TX FIFO pun           */
+volatile uint32_t dbg_can_tec       = 0;   /* brojac TX gresaka (0..255)      */
+volatile uint32_t dbg_can_rec       = 0;   /* brojac RX gresaka               */
+volatile uint32_t dbg_can_busoff    = 0;   /* 1 = ispao sa magistrale         */
+volatile uint32_t dbg_can_passive   = 0;   /* 1 = error passive               */
+volatile uint32_t dbg_can_lec       = 0;   /* kod poslednje greske protokola  */
 
 static volatile bool     feedback_due   = false;
 static volatile uint32_t last_cmd_tick  = 0;
@@ -57,6 +73,82 @@ static din_t din_cinch = {
 };
 
 static uint32_t cinch_hb_tick = 0;
+
+/* ------------------------------------------------- CAN transiver TJA1042T */
+/*
+ * STB nozica transivera je na PE2.
+ *
+ *      STB = 0  ->  Normal mode, transiver radi            <- ovo hocemo
+ *      STB = 1  ->  Standby, predajnik ugasen
+ *
+ * STB ima unutrasnji pull-up, pa nespojen ili neinicijalizovan pin znaci
+ * standby. U standby-u prijem delimicno radi a slanje ne, sto se vidi kao
+ * "primamo poruke ali nas niko ne cuje".
+ *
+ * CubeMX ovaj pin ne zna, pa ga podesavamo ovde. Drzimo ga na nuli trajno:
+ * postavi se u can_comm_init(), a can_comm_task() ga u svakom prolazu ponovo
+ * spusti, da ga nijedan poremecaj ne moze ostaviti u standby-u.
+ */
+#define CAN_STB_Pin         GPIO_PIN_2
+#define CAN_STB_GPIO_Port   GPIOE
+
+volatile uint32_t dbg_can_stb_level = 0;   /* 0 = budan, 1 = standby */
+
+/* Jedan upis u BSRR, bez citanja i bez grananja - spusta STB na nulu. */
+static inline void can_transceiver_keep_awake(void)
+{
+    CAN_STB_GPIO_Port->BSRR = (uint32_t)CAN_STB_Pin << 16;
+}
+
+static void can_transceiver_wake(void)
+{
+    GPIO_InitTypeDef g = {0};
+
+    __HAL_RCC_GPIOE_CLK_ENABLE();
+
+    g.Pin   = CAN_STB_Pin;
+    g.Mode  = GPIO_MODE_OUTPUT_PP;
+    g.Pull  = GPIO_NOPULL;
+    g.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(CAN_STB_GPIO_Port, &g);
+
+    can_transceiver_keep_awake();   /* STB = 0, Normal mode */
+    HAL_Delay(1);                   /* prelazak iz standby-a traje desetine us */
+}
+
+/* ============ TEST PRIJEMA: bez filtera, bez prekida ======================
+ * Postavi na 0 kad zavrsimo - tada se vraca normalan filter 100..152.
+ * Sa 1 prima SVE ID-jeve i cita FIFO iz glavne petlje, pa ni moj filter ni
+ * moj prekid ne mogu biti uzrok ako nesto ne stigne. */
+/* 0 = normalan rad. NE vracaj na 1 dok traje normalan rad: taj test cita
+ * isti RX FIFO kao i prekid, pa im se poruke otimaju i process_msg ih
+ * povremeno nikad ne vidi. */
+#define CAN_RX_TEST 0
+
+#if CAN_RX_TEST
+volatile uint32_t dbg_rxtest_count   = 0;  /* koliko okvira je procitano  */
+volatile uint32_t dbg_rxtest_id      = 0;  /* ID poslednjeg               */
+volatile uint32_t dbg_rxtest_fill    = 0;  /* koliko ih sada ceka u FIFO  */
+volatile uint32_t dbg_rxtest_maxfill = 0;  /* najvise ikad zateceno       */
+
+static void can_rx_test_poll(void)
+{
+    FDCAN_RxHeaderTypeDef rx;
+    uint8_t d[8];
+
+    uint32_t fill = HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0);
+    dbg_rxtest_fill = fill;
+    if (fill > dbg_rxtest_maxfill) dbg_rxtest_maxfill = fill;
+
+    while (HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) > 0)
+    {
+        if (HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &rx, d) != HAL_OK)
+            break;
+        dbg_rxtest_count++;
+        dbg_rxtest_id = rx.Identifier;
+    }
+}
+#endif
 
 /* ---------------------------------------------------------------- pack/unpack */
 
@@ -145,7 +237,10 @@ static uint32_t len_to_dlc(uint8_t len)
 static bool can_send(uint32_t id, const uint8_t *data, uint8_t len)
 {
     if (HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan1) == 0)
+    {
+        dbg_can_tx_full++;
         return false;
+    }
 
     FDCAN_TxHeaderTypeDef tx;
     tx.Identifier          = id;
@@ -158,7 +253,9 @@ static bool can_send(uint32_t id, const uint8_t *data, uint8_t len)
     tx.TxEventFifoControl  = FDCAN_NO_TX_EVENTS;
     tx.MessageMarker       = 0;
 
-    return HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &tx, (uint8_t *)data) == HAL_OK;
+    bool ok = (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &tx, (uint8_t *)data) == HAL_OK);
+    if (ok) dbg_can_tx_ok++;
+    return ok;
 }
 
 static bool send_speed_feedback(void)
@@ -182,6 +279,15 @@ static bool send_encoder_feedback(void)
 
 static void process_msg(uint32_t id, uint8_t len, const uint8_t *d)
 {
+    /* --- dijagnostika: zabelezi svaku primljenu poruku --- */
+    dbg_can_rx_total++;
+    dbg_can_last_id  = id;
+    dbg_can_last_len = len;
+    dbg_can_last_ms  = HAL_GetTick();
+    for (uint8_t i = 0; i < 8; i++)
+        dbg_can_last_data[i] = (i < len) ? d[i] : 0u;
+    if (id == WHEEL_COMMAND_VEL) dbg_can_cmd_count++;
+
     switch (id)
     {
     case WHEEL_COMMAND_VEL:
@@ -264,6 +370,15 @@ static void process_msg(uint32_t id, uint8_t len, const uint8_t *d)
     }
 }
 
+/* Prekidna rutina FDCAN-a. CubeMX je NIJE generisao jer NVIC za FDCAN1 nije
+ * bio cekiran, pa stoji ovde - nas fajl prezivljava regeneraciju. Bez nje se
+ * HAL_FDCAN_IRQHandler nikad ne zove, poruke stoje u hardverskom FIFO-u i
+ * prijem uopste ne radi. */
+void FDCAN1_IT0_IRQHandler(void)
+{
+    HAL_FDCAN_IRQHandler(&hfdcan1);
+}
+
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
     if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) == 0)
@@ -286,6 +401,8 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 
 void can_comm_init(void)
 {
+    can_transceiver_wake();      /* probudi transiver pre svega ostalog */
+
     /* Prihvati ceo opseg protokola (100..152 dekadno) u RX FIFO0.
      * Zahteva "Std Filters Nbr" >= 1 u CubeMX-u. */
     FDCAN_FilterTypeDef f;
@@ -298,50 +415,51 @@ void can_comm_init(void)
     if (HAL_FDCAN_ConfigFilter(&hfdcan1, &f) != HAL_OK)
         Error_Handler();
 
+#if CAN_RX_TEST
+    /* primi apsolutno sve u FIFO0 */
+    if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_ACCEPT_IN_RX_FIFO0,
+                                     FDCAN_ACCEPT_IN_RX_FIFO0,
+                                     FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE) != HAL_OK)
+        Error_Handler();
+#else
     if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_REJECT, FDCAN_REJECT,
                                      FDCAN_REJECT_REMOTE, FDCAN_REJECT_REMOTE) != HAL_OK)
         Error_Handler();
+#endif
 
     if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK)
         Error_Handler();
 
-    /* Prekidi za RX tek posle startup flush-a, da nule/smece sa starta ne
-     * budu obradjeni kao komande. Ukljucuje ih can_comm_startup_flush(). */
+    /* NVIC za FDCAN1. CubeMX ga nije ukljucio, pa to radimo ovde.
+     * Prioritet 5 je nizi od TIM7 (0), da prijem CAN-a ne prekida regulaciju. */
+    HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
+
+    /* RX prekidi se ukljucuju ODMAH. Ranije su se palili tek na kraju
+     * can_comm_startup_flush(), pa je ros2 mogao da posalje jednokratne
+     * komande (FEEDBACK_ON, MOTORS_ON, koeficijente) dok ih STM jos ne
+     * slusa - i one bi se nepovratno izgubile. */
+    if (HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0) != HAL_OK)
+        Error_Handler();
+
     last_cmd_tick = HAL_GetTick();
 }
 
 void can_comm_startup_flush(void)
 {
-    /* 1) isprazni sopstveni RX FIFO neko vreme (kao u referentnom kodu) */
+    /* Ranije je ovde stajalo: jednu sekundu baci sve sa RX-a, pa posalji
+     * 2000 nula, pa tek onda ukljuci RX prekide. To je gutalo jednokratne
+     * komande sa ros2 strane (FEEDBACK_ON se salje SAMO JEDNOM, u on_activate),
+     * a 2000 nepotvrdjenih okvira je guralo brojac TX gresaka ka bus-off-u
+     * ako Raspberry jos nije bio podignut.
+     *
+     * Sada RX prekidi rade od can_comm_init(), a ovde se samo isprazni ono
+     * sto je eventualno zateceno u FIFO-u. */
     FDCAN_RxHeaderTypeDef rx;
     uint8_t data[8];
-    uint32_t t0 = HAL_GetTick();
-    while (HAL_GetTick() - t0 < CAN_STARTUP_RX_DRAIN_MS)
-    {
-        while (HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) > 0)
-            HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &rx, data);
-        HAL_Delay(1);
-    }
 
-    /* 2) posalji par hiljada nula na feedback ID-jeve da se linux bafer ocisti.
-     *    Ukupno trajanje je ograniceno - ako niko na busu ne daje ACK, TX FIFO
-     *    ostaje pun i ne sme da nas zadrzi na startu. */
-    uint8_t zeros[8] = {0};
-    uint32_t t_flush = HAL_GetTick();
-    for (uint32_t i = 0; i < CAN_STARTUP_FLUSH_FRAMES; i++)
-    {
-        uint32_t id = (i & 1) ? WHEEL_POSITION : WHEEL_FEEDBACK_VEL;
-        while (!can_send(id, zeros, 8))
-        {
-            if (HAL_GetTick() - t_flush > CAN_STARTUP_FLUSH_MAX_MS)
-                goto flush_done;
-        }
-    }
-flush_done:
-
-    /* 3) sad tek pusti RX prekide */
-    if (HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0) != HAL_OK)
-        Error_Handler();
+    while (HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) > 0)
+        HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &rx, data);
 
     last_cmd_tick = HAL_GetTick();
 }
@@ -398,9 +516,22 @@ static void inputs_check(uint32_t now)
 static void bus_off_recovery(void)
 {
     FDCAN_ProtocolStatusTypeDef ps;
-    if (HAL_FDCAN_GetProtocolStatus(&hfdcan1, &ps) == HAL_OK && ps.BusOff)
+    FDCAN_ErrorCountersTypeDef  ec;
+
+    if (HAL_FDCAN_GetProtocolStatus(&hfdcan1, &ps) == HAL_OK)
     {
-        HAL_FDCAN_Start(&hfdcan1);
+        dbg_can_busoff  = ps.BusOff       ? 1u : 0u;
+        dbg_can_passive = ps.ErrorPassive ? 1u : 0u;
+        dbg_can_lec     = ps.LastErrorCode;
+
+        if (ps.BusOff)
+            HAL_FDCAN_Start(&hfdcan1);
+    }
+
+    if (HAL_FDCAN_GetErrorCounters(&hfdcan1, &ec) == HAL_OK)
+    {
+        dbg_can_tec = ec.TxErrorCnt;
+        dbg_can_rec = ec.RxErrorCnt;
     }
 }
 
@@ -408,7 +539,14 @@ void can_comm_task(void)
 {
     uint32_t now = HAL_GetTick();
 
+    can_transceiver_keep_awake();   /* transiver nikad ne sme da zaspi */
+    dbg_can_stb_level = (HAL_GPIO_ReadPin(CAN_STB_GPIO_Port, CAN_STB_Pin) == GPIO_PIN_SET) ? 1u : 0u;
+
     bus_off_recovery();
+
+#if CAN_RX_TEST
+    can_rx_test_poll();
+#endif
 
     if (feedback_due)
     {

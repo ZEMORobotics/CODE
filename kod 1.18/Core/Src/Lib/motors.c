@@ -99,7 +99,7 @@ void PWM_SetCommand_Right(float percent)
         Motor2_SetDir(1);           /* desni: 1 = napred */
     } else {
         Motor2_SetDir(0);
-        percent = -percent;
-    }
+		percent = -percent;
+	}
     Motor2_SetDuty(command_to_duty(percent));
 }

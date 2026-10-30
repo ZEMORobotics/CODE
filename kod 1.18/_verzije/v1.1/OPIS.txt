@@ -1,0 +1,65 @@
+===========================================================================
+ VERZIJA 1.1
+ Snimljeno: 30.10.2026.
+ Nastala iz: v1.0
+===========================================================================
+
+STANJE: isto kao v1.0, plus dijagnostika CAN magistrale.
+
+Enkoderi rade. Upravljanje, motori i protokol su NEPROMENJENI u odnosu
+na v1.0. Dodate su samo promenljive koje beleze sta se desava na CAN-u.
+
+---------------------------------------------------------------------------
+ RAZLIKA U ODNOSU NA v1.0
+---------------------------------------------------------------------------
+
+Menjan je samo jedan fajl: Core/Src/Lib/can_comm.c
+Pet izmena, sve su cisto posmatracke i ne uticu na ponasanje:
+
+1. Nove globalne promenljive (ispod can_cinch_state):
+      dbg_can_rx_total    ukupno primljenih poruka
+      dbg_can_last_id     ID poslednje primljene
+      dbg_can_last_len    duzina poslednje, u bajtovima
+      dbg_can_last_data   sirovih 8 bajtova poslednje poruke
+      dbg_can_last_ms     trenutak kad je stigla
+      dbg_can_cmd_count   koliko puta je stigla poruka 100
+      dbg_can_tx_ok       uspesno ubaceno u TX FIFO
+      dbg_can_tx_full     odbijeno jer je TX FIFO pun
+      dbg_can_tec         brojac TX gresaka, 0..255
+      dbg_can_rec         brojac RX gresaka
+      dbg_can_busoff      1 = ploca ispala sa magistrale
+      dbg_can_passive     1 = error passive
+      dbg_can_lec         kod poslednje greske protokola
+
+2. process_msg()  - na pocetku belezi svaku primljenu poruku
+
+3. can_send()     - broji odbijanja kad je TX FIFO pun
+
+4. can_send()     - broji uspesna slanja
+
+5. bus_off_recovery() - cita stanje protokola i brojace gresaka
+                        (ranije je samo gledao BusOff)
+
+---------------------------------------------------------------------------
+ KAKO SE TUMACI
+---------------------------------------------------------------------------
+
+Stize li išta:
+    dbg_can_rx_total raste   -> poruke stizu
+    dbg_can_last_id          -> treba 100 za zadatu brzinu
+    dbg_can_last_data        -> sirovi bajtovi, za proveru redosleda
+
+Je li magistrala zdrava:
+    dbg_can_tec = 0          -> zdravo
+    dbg_can_tec raste ka 255 -> niko ne potvrdjuje poruke
+    dbg_can_busoff = 1       -> ploca je ispala sa magistrale
+    dbg_can_tx_full raste    -> poruke se gomilaju, niko ne slusa
+
+---------------------------------------------------------------------------
+ KAKO SE VRACA
+---------------------------------------------------------------------------
+
+Reci Claude-u: "vrati mi na verziju 1.1"  (ili "na verziju 1" za v1.0).
+
+Rucno:
+  Kopiraj _verzije/v1.1/Core preko Core u projektu, pa Clean i Build.
