@@ -370,14 +370,6 @@ static void process_msg(uint32_t id, uint8_t len, const uint8_t *d)
     }
 }
 
-/* Prekidna rutina FDCAN-a. CubeMX je NIJE generisao jer NVIC za FDCAN1 nije
- * bio cekiran, pa stoji ovde - nas fajl prezivljava regeneraciju. Bez nje se
- * HAL_FDCAN_IRQHandler nikad ne zove, poruke stoje u hardverskom FIFO-u i
- * prijem uopste ne radi. */
-void FDCAN1_IT0_IRQHandler(void)
-{
-    HAL_FDCAN_IRQHandler(&hfdcan1);
-}
 
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
@@ -429,11 +421,6 @@ void can_comm_init(void)
 
     if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK)
         Error_Handler();
-
-    /* NVIC za FDCAN1. CubeMX ga nije ukljucio, pa to radimo ovde.
-     * Prioritet 5 je nizi od TIM7 (0), da prijem CAN-a ne prekida regulaciju. */
-    HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 5, 0);
-    HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
 
     /* RX prekidi se ukljucuju ODMAH. Ranije su se palili tek na kraju
      * can_comm_startup_flush(), pa je ros2 mogao da posalje jednokratne

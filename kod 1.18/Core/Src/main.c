@@ -22,7 +22,6 @@
 #include "dma.h"
 #include "fdcan.h"
 #include "i2c.h"
-#include "memorymap.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -224,7 +223,7 @@ int main(void)
   /* USER CODE END 1 */
 
   /* MPU Configuration--------------------------------------------------------*/
-    MPU_Config();
+  MPU_Config();
 
   /* MCU Configuration--------------------------------------------------------*/
 
