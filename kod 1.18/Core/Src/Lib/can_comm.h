@@ -78,9 +78,6 @@ enum CanID {
 #define CAN_IR_BURST_COUNT       10     /* koliko puta poslati IR poruku pri promeni */
 #define CAN_CINCH_BURST_COUNT    10     /* isto za cinc */
 #define CAN_CINCH_HEARTBEAT_MS   1000   /* ponavljanje stanja cinca; 0 = bez ponavljanja */
-#define CAN_STARTUP_FLUSH_FRAMES 2000   /* nula-poruke na startu (praznjenje linux bafera) */
-#define CAN_STARTUP_FLUSH_MAX_MS 2000   /* gornja granica trajanja slanja nula (ako nema ACK-a) */
-#define CAN_STARTUP_RX_DRAIN_MS  1000   /* koliko dugo prazniti sopstveni RX FIFO na startu */
 #define CAN_CMD_TIMEOUT_MS       500    /* 0 = iskljuceno. Bez poruke 100 ovoliko ms -> zadata brzina 0 */
 
 /* Stanje koje puni CAN prekid, cita kontrolna petlja (TIM7). Brzine su rad/s. */

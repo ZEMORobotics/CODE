@@ -58,25 +58,3 @@ void Motor_Stop(void)
 {
     Motor_SetDuty(0.0f);
 }
-
-
-
-
-
-void Motor_TestNoPWM(void)
-{
-    /* Oba ulaza drajvera cvrsto na 0 (coast - svi FET off) */
-    HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, GPIO_PIN_RESET);   // PH  (PD9) = 0
-    HAL_GPIO_WritePin(GPIOE, GPIO_PIN_9, GPIO_PIN_RESET);   // EN  (PE9) = 0
-
-    /* Tek sad probudi drajver */
-    HAL_GPIO_WritePin(GPIOD, GPIO_PIN_11, GPIO_PIN_RESET);  // SLP = 0
-    HAL_Delay(5);
-    HAL_GPIO_WritePin(GPIOD, GPIO_PIN_11, GPIO_PIN_SET);    // SLP = 1 (wake)
-    HAL_Delay(5);
-
-    /* Ostani ovako - gledaj fault lampicu */
-}
-
-
-

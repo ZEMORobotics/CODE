@@ -74,81 +74,7 @@ static din_t din_cinch = {
 
 static uint32_t cinch_hb_tick = 0;
 
-/* ------------------------------------------------- CAN transiver TJA1042T */
-/*
- * STB nozica transivera je na PE2.
- *
- *      STB = 0  ->  Normal mode, transiver radi            <- ovo hocemo
- *      STB = 1  ->  Standby, predajnik ugasen
- *
- * STB ima unutrasnji pull-up, pa nespojen ili neinicijalizovan pin znaci
- * standby. U standby-u prijem delimicno radi a slanje ne, sto se vidi kao
- * "primamo poruke ali nas niko ne cuje".
- *
- * CubeMX ovaj pin ne zna, pa ga podesavamo ovde. Drzimo ga na nuli trajno:
- * postavi se u can_comm_init(), a can_comm_task() ga u svakom prolazu ponovo
- * spusti, da ga nijedan poremecaj ne moze ostaviti u standby-u.
- */
-#define CAN_STB_Pin         GPIO_PIN_2
-#define CAN_STB_GPIO_Port   GPIOE
-
 volatile uint32_t dbg_can_stb_level = 0;   /* 0 = budan, 1 = standby */
-
-/* Jedan upis u BSRR, bez citanja i bez grananja - spusta STB na nulu. */
-static inline void can_transceiver_keep_awake(void)
-{
-    CAN_STB_GPIO_Port->BSRR = (uint32_t)CAN_STB_Pin << 16;
-}
-
-static void can_transceiver_wake(void)
-{
-    GPIO_InitTypeDef g = {0};
-
-    __HAL_RCC_GPIOE_CLK_ENABLE();
-
-    g.Pin   = CAN_STB_Pin;
-    g.Mode  = GPIO_MODE_OUTPUT_PP;
-    g.Pull  = GPIO_NOPULL;
-    g.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(CAN_STB_GPIO_Port, &g);
-
-    can_transceiver_keep_awake();   /* STB = 0, Normal mode */
-    HAL_Delay(1);                   /* prelazak iz standby-a traje desetine us */
-}
-
-/* ============ TEST PRIJEMA: bez filtera, bez prekida ======================
- * Postavi na 0 kad zavrsimo - tada se vraca normalan filter 100..152.
- * Sa 1 prima SVE ID-jeve i cita FIFO iz glavne petlje, pa ni moj filter ni
- * moj prekid ne mogu biti uzrok ako nesto ne stigne. */
-/* 0 = normalan rad. NE vracaj na 1 dok traje normalan rad: taj test cita
- * isti RX FIFO kao i prekid, pa im se poruke otimaju i process_msg ih
- * povremeno nikad ne vidi. */
-#define CAN_RX_TEST 0
-
-#if CAN_RX_TEST
-volatile uint32_t dbg_rxtest_count   = 0;  /* koliko okvira je procitano  */
-volatile uint32_t dbg_rxtest_id      = 0;  /* ID poslednjeg               */
-volatile uint32_t dbg_rxtest_fill    = 0;  /* koliko ih sada ceka u FIFO  */
-volatile uint32_t dbg_rxtest_maxfill = 0;  /* najvise ikad zateceno       */
-
-static void can_rx_test_poll(void)
-{
-    FDCAN_RxHeaderTypeDef rx;
-    uint8_t d[8];
-
-    uint32_t fill = HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0);
-    dbg_rxtest_fill = fill;
-    if (fill > dbg_rxtest_maxfill) dbg_rxtest_maxfill = fill;
-
-    while (HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) > 0)
-    {
-        if (HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &rx, d) != HAL_OK)
-            break;
-        dbg_rxtest_count++;
-        dbg_rxtest_id = rx.Identifier;
-    }
-}
-#endif
 
 /* ---------------------------------------------------------------- pack/unpack */
 
@@ -393,7 +319,6 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 
 void can_comm_init(void)
 {
-    can_transceiver_wake();      /* probudi transiver pre svega ostalog */
 
     /* Prihvati ceo opseg protokola (100..152 dekadno) u RX FIFO0.
      * Zahteva "Std Filters Nbr" >= 1 u CubeMX-u. */
@@ -406,18 +331,6 @@ void can_comm_init(void)
     f.FilterID2    = CAN_ID_FILTER_MAX;   /* 152 */
     if (HAL_FDCAN_ConfigFilter(&hfdcan1, &f) != HAL_OK)
         Error_Handler();
-
-#if CAN_RX_TEST
-    /* primi apsolutno sve u FIFO0 */
-    if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_ACCEPT_IN_RX_FIFO0,
-                                     FDCAN_ACCEPT_IN_RX_FIFO0,
-                                     FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE) != HAL_OK)
-        Error_Handler();
-#else
-    if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_REJECT, FDCAN_REJECT,
-                                     FDCAN_REJECT_REMOTE, FDCAN_REJECT_REMOTE) != HAL_OK)
-        Error_Handler();
-#endif
 
     if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK)
         Error_Handler();
@@ -526,14 +439,7 @@ void can_comm_task(void)
 {
     uint32_t now = HAL_GetTick();
 
-    can_transceiver_keep_awake();   /* transiver nikad ne sme da zaspi */
-    dbg_can_stb_level = (HAL_GPIO_ReadPin(CAN_STB_GPIO_Port, CAN_STB_Pin) == GPIO_PIN_SET) ? 1u : 0u;
-
     bus_off_recovery();
-
-#if CAN_RX_TEST
-    can_rx_test_poll();
-#endif
 
     if (feedback_due)
     {
