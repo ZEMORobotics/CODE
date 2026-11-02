@@ -1,19 +1,11 @@
 /*
- * board_config.h
+ *   SLP1 = PD11   DIR1 = PD9    PWM1 = PE9  (TIM1_CH1)   -> Motor 1 (left wheel)
+ *   SLP2 = PA10   DIR2 = PA8    PWM2 = PE11 (TIM1_CH2)   -> Motor 2 (right wheel)
  *
- * STM32H750 "kretacka" - regulacija brzine levog i desnog tocka preko CAN-a.
+ *   ENC1: A=PB3 B=PA15 (TIM2)                            -> left wheel encoder
+ *   ENC2: A=PC7 B=PC6 (TIM3)                             -> right wheel encoder
+ *   SENS1 = PE4 (back IR), SENS2 = PE5 (front IR)    -> main.h
  *
- *   SLP1 = PD11   DIR1 = PD9    PWM1 = PE9  (TIM1_CH1)   -> Motor 1 (levi tocak)
- *   SLP2 = PA10   DIR2 = PA8    PWM2 = PE11 (TIM1_CH2)   -> Motor 2 (desni tocak)
- *   ENC1: A=PB3 B=PA15 (TIM2)                            -> enkoder levog tocka
- *   ENC2: A=PC7 B=PC6 (TIM3)                             -> enkoder desnog tocka
- *   SENS1 = PE4 (prednji IR), SENS2 = PE5 (zadnji IR)    -> main.h
- *   FDCAN1                                               -> CubeMX (fdcan.c)
- *
- * Podela posla:
- *   STM  - meri brzinu tockova [rad/s], vodi PID po tocku, salje brzine i
- *          enkoderske tickove nazad. NE racuna poziciju robota.
- *   ros2 - odometrija (x, y, ugao), planiranje, zadaje brzinu po tocku [rad/s].
  *
  * Sve brzine u kodu su ugaone brzine tocka u rad/s. Nigde nema mm/s, pa
  * precnik tocka i razmak tockova nisu potrebni (osim ako se ukljuci
@@ -22,6 +14,8 @@
 
 #ifndef LIB_BOARD_CONFIG_H_
 #define LIB_BOARD_CONFIG_H_
+
+
 #include "stm32h7xx_hal.h"
 
 extern TIM_HandleTypeDef htim7, htim2, htim3;
@@ -47,8 +41,8 @@ extern TIM_HandleTypeDef htim7, htim2, htim3;
  * -100 % = CCR max nazad. */
 #define MOTOR_SUPPLY_VOLTAGE_DEFAULT  34.0f
 #define MOTOR_MAX_VOLTAGE             18.0f
-#define MOTOR_SUPPLY_VOLTAGE_MIN      12.0f   /* ispod ovoga se vrednost ne prihvata */
-#define MOTOR_SUPPLY_VOLTAGE_MAX      36.0f   /* iznad ovoga se vrednost ne prihvata */
+#define MOTOR_SUPPLY_VOLTAGE_MIN      12.0f
+#define MOTOR_SUPPLY_VOLTAGE_MAX      36.0f
 
 /* Enkoderi ---------------------------------------------------------------- */
 #define ENC_LEFT_TIMER        htim2     /* ENC1, 32-bitni brojac */
@@ -130,5 +124,6 @@ extern TIM_HandleTypeDef htim7, htim2, htim3;
   #define RADS_TO_MMS(w)  ((w) * WHEEL_RADIUS_MM)
   #define MMS_TO_RADS(v)  ((v) / WHEEL_RADIUS_MM)
 #endif
+
 
 #endif /* LIB_BOARD_CONFIG_H_ */

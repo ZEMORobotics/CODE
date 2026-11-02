@@ -8,14 +8,14 @@
 #include <string.h>
 #include <math.h>
 
-extern wheel_pid_t pid_left;     /* main.c */
+extern wheel_pid_t pid_left;
 extern wheel_pid_t pid_right;
-extern pid_gains_t wheel_gains;  /* zajednicki koeficijenti oba tocka */
+extern pid_gains_t wheel_gains;
 
 volatile float can_ref_speed_left  = 0.0f;
 volatile float can_ref_speed_right = 0.0f;
 volatile bool  can_motors_on    = true;
-volatile bool  can_feedback_on  = true;    /* saljemo odmah po paljenju */
+volatile bool  can_feedback_on  = true;
 volatile bool  can_reference_on = true;
 volatile float can_kp_rot = 0.0f, can_ki_rot = 0.0f, can_kd_rot = 0.0f;
 volatile uint8_t can_cinch_state = 0;

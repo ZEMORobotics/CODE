@@ -19,7 +19,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
-#include "dma.h"
 #include "fdcan.h"
 #include "i2c.h"
 #include "tim.h"
@@ -30,7 +29,6 @@
 /* USER CODE BEGIN Includes */
 #include "Lib/ADC.h"
 #include "Lib/motor.h"
-#include "Lib/motor2.h"
 #include "Lib/comm.h"
 
 #include "Lib/board_config.h"
@@ -70,55 +68,17 @@ volatile float cmd_left  = 0.0f;          /* % maks. PWM-a, -100..+100 */
 volatile float cmd_right = 0.0f;
 volatile int sys = 0;
 
+/* USER CODE END PV */
 
+/* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MPU_Config(void);
+/* USER CODE BEGIN PFP */
 
+/* USER CODE END PFP */
 
-/* ===========================================================================
- *  KONTROLNA PETLJA - TIM7 @ CONTROL_FREQ_HZ (500 Hz)
- *  enkoderi -> brzina tocka [rad/s] -> PID po tocku [%] -> PWM;
- *  svakih FEEDBACK_FREQ_HZ oznaci slanje feedback-a.
- * ===========================================================================*/
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-    if (htim->Instance != TIM7)
-        return;
-
-    static uint16_t feedback_div = 0;
-    static uint16_t alive_div = 0;
-    sys++;
-
-    odometry_update();                       /* razlika brojaca -> rad/s (+ filter) */
-    meas_speed_left  = get_wheel_speed_left();
-    meas_speed_right = get_wheel_speed_right();
-
-    if (can_motors_on)
-    {
-        cmd_left  = wheel_pid_update(&pid_left,  can_ref_speed_left,  meas_speed_left);
-        cmd_right = wheel_pid_update(&pid_right, can_ref_speed_right, meas_speed_right);
-        PWM_SetCommand_Left(cmd_left);
-        PWM_SetCommand_Right(cmd_right);
-    }
-    else
-    {
-        cmd_left = cmd_right = 0.0f;
-        PWM_Stop();
-    }
-
-    if (++feedback_div >= (CONTROL_FREQ_HZ / FEEDBACK_FREQ_HZ))
-    {
-        feedback_div = 0;
-        can_comm_feedback_due();
-    }
-
-    if (++alive_div >= (CONTROL_FREQ_HZ / 2))   /* 1 Hz treptanje = petlja ziva */
-    {
-        alive_div = 0;
-        HAL_GPIO_TogglePin(ALIVE_GPIO_Port, ALIVE_Pin);
-    }
-}
-
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
 
 /* USER CODE END 0 */
 
@@ -154,7 +114,6 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_ADC1_Init();
   MX_TIM1_Init();
   MX_I2C1_Init();
@@ -166,42 +125,17 @@ int main(void)
   MX_FDCAN1_Init();
   /* USER CODE BEGIN 2 */
 
-  /* TIM7 na CONTROL_FREQ_HZ bez obzira sta je u CubeMX-u */
-  __HAL_TIM_SET_PRESCALER(&htim7, TIM7_PRESCALER);
-  __HAL_TIM_SET_AUTORELOAD(&htim7,
-      (TIM7_INPUT_CLK_HZ / (TIM7_PRESCALER + 1)) / CONTROL_FREQ_HZ - 1);
-  /* PSC/ARR su baferovani - primeni ih odmah i obrisi laznu update zastavicu */
-  HAL_TIM_GenerateEvent(&htim7, TIM_EVENTSOURCE_UPDATE);
-  __HAL_TIM_CLEAR_FLAG(&htim7, TIM_FLAG_UPDATE);
+  /* USER CODE END 2 */
 
-  /* Jedan skup koeficijenata, oba regulatora pokazuju na njega */
-  wheel_pid_gains_init(&wheel_gains, PID_DEFAULT_KP, PID_DEFAULT_KI, PID_DEFAULT_KD,
-                       PID_D_LPF_FC_HZ, (float)CONTROL_FREQ_HZ);
-  wheel_pid_init(&pid_left,  &wheel_gains, PID_COMMAND_LIMIT_PCT, PID_INTEGRATOR_LIMIT_PCT);
-  wheel_pid_init(&pid_right, &wheel_gains, PID_COMMAND_LIMIT_PCT, PID_INTEGRATOR_LIMIT_PCT);
-
-  /* motor_supply_voltage je za sada MOTOR_SUPPLY_VOLTAGE_DEFAULT (30 V -> 60 %).
-   * Kad se doda ADC: PWM_SetSupplyVoltage(ADC_ReadVbat()) pre PWM_Init(). */
-  PWM_Init();
-  encoder_init();
-
-
-
-//  test_enc_pins_init();   /* preuzima pinove od tajmera, cita ih kao ulaze */
-
-
-  odometry_init();
-
-  can_comm_init();
-  can_comm_startup_flush();      /* isprazni RX, posalji nule, tek onda RX prekidi */
-
-  HAL_TIM_Base_Start_IT(&htim7); /* od ovog trenutka radi PID */
-
-
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
   while (1)
   {
-      can_comm_task();   /* feedback 100 Hz, IR burst, timeout komande */
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
   }
+  /* USER CODE END 3 */
 }
 
 /**

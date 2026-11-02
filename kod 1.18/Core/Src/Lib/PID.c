@@ -1,18 +1,15 @@
 #include "PID.h"
 #include "lowpass.h"
 
-void wheel_pid_gains_init(pid_gains_t *gains, float kp, float ki, float kd,
-                          float derivative_filter_fc_hz, float control_freq_hz)
+void wheel_pid_gains_init(pid_gains_t *gains, float kp, float ki, float kd, float derivative_filter_fc_hz, float control_freq_hz)
 {
     gains->proportional_gain = kp;
     gains->integral_gain     = ki;
     gains->derivative_gain   = kd;
-    gains->derivative_filter_coefficient =
-        lowpass_coefficient(derivative_filter_fc_hz, control_freq_hz);
+    gains->derivative_filter_coefficient = lowpass_coefficient(derivative_filter_fc_hz, control_freq_hz);
 }
 
-void wheel_pid_init(wheel_pid_t *pid, const pid_gains_t *gains,
-                    float command_limit_pct, float integrator_limit_pct)
+void wheel_pid_init(wheel_pid_t *pid, const pid_gains_t *gains, float command_limit_pct, float integrator_limit_pct)
 {
     pid->gains            = gains;
     pid->command_limit    = command_limit_pct;

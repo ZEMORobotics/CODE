@@ -82,6 +82,8 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 
+#define LEFT_MOTOR_SLP_Pin (SLP2_Pin)
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
