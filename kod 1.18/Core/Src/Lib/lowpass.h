@@ -15,7 +15,7 @@ static inline float lowpass_coefficient(float fc_hz, float sample_freq_hz)
 {
     if (fc_hz <= 0.0f || sample_freq_hz <= 0.0f) return 0.0f;
 
-    return expf(-(PI_2  * (fc_hz / sample_freq_hz)));
+    return expf(-(TWO_PI_F  * (fc_hz / sample_freq_hz)));
 }
 
 static inline float lowpass_step(float coefficient, float filtered_old, float raw)

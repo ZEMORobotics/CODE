@@ -1,5 +1,4 @@
 #include "PID.h"
-#include "lowpass.h"
 
 void wheel_pid_gains_init(pid_gains_t *gains, float kp, float ki, float kd, float derivative_filter_fc_hz, float control_freq_hz)
 {

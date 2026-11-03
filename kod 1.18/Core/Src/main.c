@@ -57,7 +57,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-pid_gains_t wheel_gains;                   /* jedan skup Kp/Ki/Kd za oba tocka */
+pid_gains_t wheel_gains;
 wheel_pid_t pid_left;
 wheel_pid_t pid_right;
 
@@ -88,17 +88,8 @@ static void MPU_Config(void);
   */
 int main(void)
 {
-
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
-  /* MPU Configuration--------------------------------------------------------*/
   MPU_Config();
 
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
@@ -123,14 +114,22 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM7_Init();
   MX_FDCAN1_Init();
+
+
   /* USER CODE BEGIN 2 */
 
   encoder_init();
+  PWM_Init();
+  odometry_init();
 
+
+  wheel_pid_gains_init(&wheel_gains, PID_DEFAULT_KP, PID_DEFAULT_KI, PID_DEFAULT_KD, PID_D_LPF_FC_HZ, CONTROL_FREQ_HZ);
+  wheel_pid_init(&pid_left, &wheel_gains, PID_COMMAND_LIMIT_PCT, PID_INTEGRATOR_LIMIT_PCT);
+  wheel_pid_init(&pid_right, &wheel_gains, PID_COMMAND_LIMIT_PCT, PID_INTEGRATOR_LIMIT_PCT);
+
+  HAL_TIM_Base_Start_IT(&htim7);
   /* USER CODE END 2 */
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */

@@ -26,6 +26,7 @@
 #define LIB_PID_H_
 
 #include <stdbool.h>
+#include "lowpass.h"
 
 typedef struct {
     volatile float proportional_gain;              /* K_p */
