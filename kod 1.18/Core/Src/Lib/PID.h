@@ -1,15 +1,10 @@
 /*
- * PID.h - regulator brzine tocka, po jedan za levi i desni tocak.
- *
- * Pozicioni PID sa filtriranim D clanom i anti-windup-om, po uzoru na
- * referentni PIC32 kod (pid_regulator.c):
- *
- *   error       = reference - feedback                        [rad/s]
- *   P           = Kp * error                                   [%]
- *   I          += Ki * error        (klesten na +-integrator_limit)
- *   D_raw       = error - error_previous                       (po tiku)
- *   D_filtered  = a * D_filtered + (1 - a) * D_raw,   a = e^(-2*pi*fc*T)
- *   command     = P + I + Kd * D_filtered   (klesteno na +-command_limit)
+ *   error       = reference - feedback
+ *   P           = K_p * error                                   [%]
+ *   I          += K_i * error
+ *   D_raw       = error - error_previous
+ *   D_filtered  = a * D_filtered + (1 - a) * D_raw,   a = e^(-2*pi*f_c*T)
+ *   command     = P + I + K_d * D_filtered
  *
  * Anti-windup: ako je izlaz zasicen a greska gura u istom smeru, I clan se
  * ne menja u tom tiku.
@@ -29,18 +24,18 @@
  */
 #ifndef LIB_PID_H_
 #define LIB_PID_H_
+
 #include <stdbool.h>
 
-/* Zajednicki koeficijenti za oba tocka. Menjaju se preko CAN-a (PID_KP=103, PID_KI=104, PID_KD=105). */
 typedef struct {
-    volatile float proportional_gain;              /* Kp */
-    volatile float integral_gain;                  /* Ki, po tiku */
-    volatile float derivative_gain;                /* Kd, po tiku */
-    volatile float derivative_filter_coefficient;  /* a = e^(-2*pi*fc*T), 0..1 */
+    volatile float proportional_gain;              /* K_p */
+    volatile float integral_gain;                  /* K_i */
+    volatile float derivative_gain;                /* K_d */
+    volatile float derivative_filter_coefficient;  /* a = e^(-2*pi*f_c*T), 0..1 */
 } pid_gains_t;
 
 typedef struct {
-    const pid_gains_t *gains;                      /* zajednicki koeficijenti */
+    const pid_gains_t *gains;
 
     volatile float reference;                      /* zadata brzina tocka [rad/s] */
     volatile float feedback;                       /* izmerena brzina tocka [rad/s] */
@@ -57,20 +52,10 @@ typedef struct {
     volatile float command_limit;                  /* +- granica izlaza [%] */
 } wheel_pid_t;
 
-/* Podesi zajednicke koeficijente. derivative_filter_fc_hz i control_freq_hz
- * sluze da se izracuna koeficijent filtera D clana. */
-void wheel_pid_gains_init(pid_gains_t *gains, float kp, float ki, float kd,
-                          float derivative_filter_fc_hz, float control_freq_hz);
 
-/* Poveze regulator sa zajednickim koeficijentima, postavi granice, obrise stanje. */
-void wheel_pid_init(wheel_pid_t *pid, const pid_gains_t *gains,
-                    float command_limit_pct, float integrator_limit_pct);
-
-/* Obrise stanje (greska, I clan, D filter, izlaz) - koeficijenti ostaju. */
+void wheel_pid_gains_init(pid_gains_t *gains, float kp, float ki, float kd, float derivative_filter_fc_hz, float control_freq_hz);
+void wheel_pid_init(wheel_pid_t *pid, const pid_gains_t *gains, float command_limit_pct, float integrator_limit_pct);
 void wheel_pid_reset(wheel_pid_t *pid);
-
-/* Jedan korak regulatora. Pozivati tacno control_freq_hz puta u sekundi.
- * Vraca command u % (-100..+100). */
 float wheel_pid_update(wheel_pid_t *pid, float reference, float feedback);
 
 #endif /* LIB_PID_H_ */

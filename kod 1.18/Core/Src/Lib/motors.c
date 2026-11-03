@@ -1,6 +1,7 @@
 #include "motors.h"
 
 static float max_duty_pct = MOTOR_MAX_VOLTAGE / MOTOR_SUPPLY_VOLTAGE_DEFAULT * 100.0f;
+static float max_motor_voltage = MOTOR_MAX_VOLTAGE;
 
 void PWM_Init(void)
 {
@@ -11,8 +12,8 @@ void PWM_Init(void)
     if(isfinite(voltage) && voltage >= MOTOR_SUPPLY_VOLTAGE_MIN && voltage <= MOTOR_SUPPLY_VOLTAGE_MAX){
 		max_duty_pct = (MOTOR_MAX_VOLTAGE / voltage) * 100.0f;
 
-		if (max_duty_pct > 100.0f)
-			max_duty_pct = 100.0f;
+		if (max_duty_pct > MOTOR_ABSOLUTE_MAX_DUTY)
+			max_duty_pct = MOTOR_ABSOLUTE_MAX_DUTY;
 	}
 
     Motor_Enable(1);
@@ -33,7 +34,7 @@ void PWM_Stop(void)
     Motor2_SetDuty(0.0f);
 }
 
-static float command_to_duty(float percent)
+static inline float command_to_duty(float percent)
 {
     if (percent < 0.0f)   percent = 0.0f;
     if (percent > 100.0f)    percent = 100.0f;

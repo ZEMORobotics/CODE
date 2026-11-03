@@ -1,8 +1,6 @@
-/*
- * encoders.h
- */
 #ifndef LIB_ENCODERS_H_
 #define LIB_ENCODERS_H_
+
 #include "board_config.h"
 #include <stdint.h>
 

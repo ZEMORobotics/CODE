@@ -125,6 +125,8 @@ int main(void)
   MX_FDCAN1_Init();
   /* USER CODE BEGIN 2 */
 
+  encoder_init();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */

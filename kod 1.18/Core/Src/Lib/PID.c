@@ -38,35 +38,32 @@ float wheel_pid_update(wheel_pid_t *pid, float reference, float feedback)
     pid->error_previous = pid->error;
     pid->error          = reference - feedback;
 
-    /* P clan */
     float proportional_term = g->proportional_gain * pid->error;
 
-    /* I clan - prvo se izracuna novi, klesti, a prihvata tek ako nema windup-a */
+
     float integrator_new = pid->integrator + g->integral_gain * pid->error;
     if (integrator_new >  pid->integrator_limit) integrator_new =  pid->integrator_limit;
     if (integrator_new < -pid->integrator_limit) integrator_new = -pid->integrator_limit;
 
-    /* D clan - izvod greske po tiku, kroz niskopropusni filter prvog reda.
-     * Filtrira se izvod, pa se tek onda mnozi sa Kd, da promena Kd preko
-     * CAN-a ne ostavi "rep" u stanju filtera. */
+
+    /* D = a * D_filtered + (1 - a) * D_raw */
     pid->derivative_raw      = pid->error - pid->error_previous;
-    pid->derivative_filtered = lowpass_step(g->derivative_filter_coefficient,
-                                            pid->derivative_filtered,
-                                            pid->derivative_raw);
+    pid->derivative_filtered = lowpass_step(g->derivative_filter_coefficient, pid->derivative_filtered, pid->derivative_raw);
     float derivative_term = g->derivative_gain * pid->derivative_filtered;
 
     float command = proportional_term + integrator_new + derivative_term;
 
-    /* Klestenje izlaza + anti-windup: ako je izlaz u zasicenju i greska gura
-     * dalje u zasicenje, I clan se ne pomera u ovom tiku. */
+
     bool integrator_ok = true;
-    if (command > pid->command_limit) {
-        command = pid->command_limit;
-        if (pid->error > 0.0f) integrator_ok = false;
-    } else if (command < -pid->command_limit) {
-        command = -pid->command_limit;
-        if (pid->error < 0.0f) integrator_ok = false;
+    if(command > pid->command_limit){
+    	command = pid->command_limit;
+		if (pid->error > 0.0f) integrator_ok = false;
+
+    }else if(command < -pid->command_limit){
+		command = -pid->command_limit;
+		if (pid->error < 0.0f) integrator_ok = false;
     }
+
     if (integrator_ok)
         pid->integrator = integrator_new;
 

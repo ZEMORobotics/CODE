@@ -6,10 +6,6 @@
  *   ENC2: A=PC7 B=PC6 (TIM3)                             -> right wheel encoder
  *   SENS1 = PE4 (back IR), SENS2 = PE5 (front IR)    -> main.h
  *
- *
- * Sve brzine u kodu su ugaone brzine tocka u rad/s. Nigde nema mm/s, pa
- * precnik tocka i razmak tockova nisu potrebni (osim ako se ukljuci
- * ODOMETRY_ON_STM, sto je iskljuceno).
  */
 
 #ifndef LIB_BOARD_CONFIG_H_
@@ -20,31 +16,23 @@
 
 extern TIM_HandleTypeDef htim7, htim2, htim3;
 
-/* Kontrolna petlja --------------------------------------------------------- */
-#define CONTROL_FREQ_HZ      500        /* PID + merenje brzine, TIM7 prekid    */
+// PID
+#define CONTROL_FREQ_HZ      500        /* PID */
 #define CONTROL_PERIOD_S     (1.0f / (float)CONTROL_FREQ_HZ)   /* T = 0.002 s   */
-#define FEEDBACK_FREQ_HZ     100        /* slanje 101 / 102 ka Raspberry        */
-#define TIM7_INPUT_CLK_HZ    64000000UL /* APB1 timer clock (Clock Configuration) */
-#define TIM7_PRESCALER       63         /* 64 MHz / 64 = 1 MHz brojacki takt     */
 
-/* Motori ------------------------------------------------------------------ */
-/* Drajver na punom CCR-u daje napon napajanja, a motor sme najvise
- * MOTOR_MAX_VOLTAGE. Iz toga motors.c racuna plafon ispune:
- *
- *      max_duty [%] = MOTOR_MAX_VOLTAGE / motor_supply_voltage * 100
- *      30 V  ->  60 %  ->  CCR max = 0.60 * 2560 = 1536
- *
- * motor_supply_voltage je GLOBALNA PROMENLJIVA (motors.c), ne makro, da bi
- * kasnije mogla da se ucita sa ADC-a na startu. Ovde je samo pocetna vrednost.
- *
- * Komanda regulatora je u procentima tog plafona: +100 % = CCR max napred,
- * -100 % = CCR max nazad. */
+#define FEEDBACK_FREQ_HZ     100        /* PID messages to RASPBERRY */
+
+#define TIM7_INPUT_CLK_HZ    64000000UL /* APB1 timer clock (Clock Configuration) */
+#define TIM7_PRESCALER       63         /* 64 MHz / 64 = 1 MHz  */
+
+// Motors
 #define MOTOR_SUPPLY_VOLTAGE_DEFAULT  34.0f
 #define MOTOR_MAX_VOLTAGE             18.0f
-#define MOTOR_SUPPLY_VOLTAGE_MIN      12.0f
+#define MOTOR_SUPPLY_VOLTAGE_MIN      14.0f
 #define MOTOR_SUPPLY_VOLTAGE_MAX      36.0f
+#define MOTOR_ABSOLUTE_MAX_DUTY       64.29f
 
-/* Enkoderi ---------------------------------------------------------------- */
+// Encoders
 #define ENC_LEFT_TIMER        htim2     /* ENC1, 32-bitni brojac */
 #define ENC_RIGHT_TIMER       htim3     /* ENC2, 16-bitni brojac */
 #define ENCODER_TICKS_PER_REV (2048 * 4) /* TI12 mod = 4x od 2048 CPR */
@@ -52,25 +40,24 @@ extern TIM_HandleTypeDef htim7, htim2, htim3;
 #define ENC_RIGHT_SIGN        (+1)
 #define RAD_PER_TICK          (6.283185307f / (float)ENCODER_TICKS_PER_REV)
 
-/* Filtriranje izmerene brzine --------------------------------------------- */
+
 /* Brzina iz jednog tika (2 ms) ima kvantizacioni sum od +-1 tick, sto je
- * +-0.38 rad/s. Prvi red niskopropusnog filtera (lowpass.h):
- *      filtrirano = a * filtrirano_staro + (1 - a) * sirovo
- *      a = e^(-2*pi*fc*T),  T = CONTROL_PERIOD_S
- * Ista filtrirana brzina ide i u PID i u feedback ka Raspberry-ju. */
+ * +-0.38 rad/s. Prvi red niskopropusnog filtera (lowpass.h)
+ * :
+ *      filtered = a * filtrirano_staro + (1 - a) * raw
+ *      a = e^(-2*pi * f_c * T),  T = CONTROL_PERIOD_S
+ */
 #define SPEED_LPF_FC_HZ       30.0f
 
-/* Zadata brzina sa CAN-a se odseca na ovo (zastita od gluposti / smeca). */
 #define MAX_WHEEL_SPEED_RADS  60.0f
 
-/* Digitalni ulazi ---------------------------------------------------------- */
-/* IR senzori: 1 = pin HIGH znaci "ima prepreka" (pinovi su PULLDOWN u gpio.c). */
-#define IR_ACTIVE_HIGH    1
-#define IR_DEBOUNCE_MS    5     /* kratko - prepreka mora brzo da se javi */
 
-/* Cinc (starter kabl) - signal sa kretacke koji javlja ostalim plocama da je
- * mec poceo. Dodaj pin u CubeMX kao GPIO_Input sa PULL-UP.
- *
+/* IR: 1 = pin HIGH -> detected */
+#define IR_ACTIVE_HIGH    1
+#define IR_DEBOUNCE_MS    5
+
+
+/*
  * Ozicenje koje ovo podrazumeva: kabl kratko spaja pin na GND dok je utaknut.
  *   utaknut cinc  -> pin LOW  -> salje se 0 (jos nije start)
  *   izvucen cinc  -> pin HIGH -> salje se 1 (START)
