@@ -40,12 +40,12 @@ extern TIM_HandleTypeDef htim7, htim2, htim3;
 #define MOTOR_ABSOLUTE_MAX_DUTY       64.29f
 
 // Encoders
-#define ENC_LEFT_TIMER        htim2     /* ENC1, 32-bit */
-#define ENC_RIGHT_TIMER       htim3     /* ENC2, 16-bit */
-#define ENCODER_TICKS_PER_REV (2048 * 4)
+#define TWO_PI_F 6.283185307179586f
+
+#define ENCODER_TICKS_PER_REV 8192		/* 4 * 2048 */
 #define ENC_LEFT_SIGN         (+1)		/*Used for direction calculation, however this is handled in hardware so this yet another claud bs*/
 #define ENC_RIGHT_SIGN        (+1)		/*TODO: Test then delete this shit*/
-#define RAD_PER_TICK          (6.283185307f / (float)ENCODER_TICKS_PER_REV)
+#define RAD_PER_TICK          (TWO_PI_F / (float)ENCODER_TICKS_PER_REV)
 
 
 #define SPEED_LPF_FC_HZ       30.0f

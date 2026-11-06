@@ -4,6 +4,9 @@
 #include "board_config.h"
 #include <stdint.h>
 
+#define ENC_LEFT_TIMER        htim2     /* ENC1, 32-bit */
+#define ENC_RIGHT_TIMER       htim3     /* ENC2, 16-bit */
+
 void    encoder_init(void);
 void    encoder_reset(void);
 int32_t encoder_get_count_left_motor(void);

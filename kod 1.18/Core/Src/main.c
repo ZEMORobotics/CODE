@@ -27,15 +27,16 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "Lib/board_config.h"
+
 #include "Lib/ADC.h"
 #include "Lib/motor.h"
-#include "Lib/comm.h"
-
-#include "Lib/board_config.h"
 #include "Lib/motors.h"
+
 #include "Lib/encoders.h"
 #include "Lib/odometry.h"
 #include "Lib/PID.h"
+
 #include "Lib/can_comm.h"
 /* USER CODE END Includes */
 
@@ -127,6 +128,9 @@ int main(void)
   wheel_pid_init(&pid_left, &wheel_gains, PID_COMMAND_LIMIT_PCT, PID_INTEGRATOR_LIMIT_PCT);
   wheel_pid_init(&pid_right, &wheel_gains, PID_COMMAND_LIMIT_PCT, PID_INTEGRATOR_LIMIT_PCT);
 
+  can_comm_init();
+  can_comm_startup_flush();
+
   HAL_TIM_Base_Start_IT(&htim7);
   /* USER CODE END 2 */
 
@@ -135,6 +139,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+	  can_comm_task();
   }
   /* USER CODE END 3 */
 }
@@ -199,6 +205,51 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance != TIM7)
+        return;
+
+    static uint16_t feedback_div = 0;
+    static uint16_t alive_div = 0;
+
+    sys++;
+
+    // 500hz
+    odometry_update();
+
+    meas_speed_left  = get_wheel_speed_left();
+    meas_speed_right = get_wheel_speed_right();
+
+    // PID - 500 Hz
+    if (can_motors_on) {
+        cmd_left = wheel_pid_update(&pid_left, can_ref_speed_left, meas_speed_left);
+        cmd_right = wheel_pid_update(&pid_right, can_ref_speed_right, meas_speed_right);
+
+        PWM_SetCommand_Left(cmd_left);
+        PWM_SetCommand_Right(cmd_right);
+    } else {
+        cmd_left = 0.0f;
+        cmd_right = 0.0f;
+
+        PWM_Stop();
+    }
+
+    // CAN feedback - 100 Hz
+    if (++feedback_div >= CONTROL_FREQ_HZ / FEEDBACK_FREQ_HZ)
+    {
+        feedback_div = 0;
+        can_comm_feedback_due();
+    }
+
+    // 1Hz alive led blinking
+    if (++alive_div >= CONTROL_FREQ_HZ)
+	{
+		alive_div = 0;
+		HAL_GPIO_TogglePin(ALIVE_GPIO_Port, ALIVE_Pin);
+	}
+}
 
 /* USER CODE END 4 */
 
