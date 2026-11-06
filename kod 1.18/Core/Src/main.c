@@ -58,16 +58,11 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-pid_gains_t wheel_gains;
-wheel_pid_t pid_left;
-wheel_pid_t pid_right;
 
-/* Menja ih TIM7 prekid, gledaju se iz debagera - volatile. */
-volatile float meas_speed_left  = 0.0f;   /* rad/s, filtrirano */
-volatile float meas_speed_right = 0.0f;
-volatile float cmd_left  = 0.0f;          /* % maks. PWM-a, -100..+100 */
-volatile float cmd_right = 0.0f;
-volatile int sys = 0;
+volatile static float meas_speed_left  = 0.0f;   /* rad/s, filtrirano */
+volatile static float meas_speed_right = 0.0f;
+volatile static float cmd_left  = 0.0f;          /* % maks. PWM-a, -100..+100 */
+volatile static float cmd_right = 0.0f;
 
 /* USER CODE END PV */
 
@@ -213,8 +208,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
     static uint16_t feedback_div = 0;
     static uint16_t alive_div = 0;
-
-    sys++;
 
     // 500hz
     odometry_update();

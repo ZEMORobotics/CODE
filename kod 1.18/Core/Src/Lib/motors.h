@@ -4,9 +4,14 @@
 #include <stdbool.h>
 #include <math.h>
 
-#include "board_config.h"
 #include "ADC.h"
 #include "motor.h"
+
+#define MOTOR_SUPPLY_VOLTAGE_DEFAULT  34.0f
+#define MOTOR_MAX_VOLTAGE             18.0f
+#define MOTOR_SUPPLY_VOLTAGE_MIN      14.0f
+#define MOTOR_SUPPLY_VOLTAGE_MAX      36.0f
+#define MOTOR_ABSOLUTE_MAX_DUTY       64.29f
 
 void  PWM_Init(void);
 void  PWM_Enable(bool on);

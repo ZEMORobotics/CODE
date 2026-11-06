@@ -1,7 +1,6 @@
 #include "motors.h"
 
 static float max_duty_pct = MOTOR_MAX_VOLTAGE / MOTOR_SUPPLY_VOLTAGE_DEFAULT * 100.0f;
-static float max_motor_voltage = MOTOR_MAX_VOLTAGE;
 
 void PWM_Init(void)
 {

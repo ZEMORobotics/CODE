@@ -28,6 +28,13 @@
 #include <stdbool.h>
 #include "lowpass.h"
 
+#define PID_DEFAULT_KP            5.7f
+#define PID_DEFAULT_KI            0.118f
+#define PID_DEFAULT_KD            0.0f
+#define PID_D_LPF_FC_HZ           20.0f   /* f_c filter */
+#define PID_COMMAND_LIMIT_PCT     100.0f
+#define PID_INTEGRATOR_LIMIT_PCT  100.0f
+
 typedef struct {
     volatile float proportional_gain;              /* K_p */
     volatile float integral_gain;                  /* K_i */
@@ -53,6 +60,10 @@ typedef struct {
     volatile float command_limit;                  /* +- granica izlaza [%] */
 } wheel_pid_t;
 
+// Global variables for PID wheels
+extern wheel_pid_t pid_left;
+extern wheel_pid_t pid_right;
+extern pid_gains_t wheel_gains;
 
 void wheel_pid_gains_init(pid_gains_t *gains, float kp, float ki, float kd, float derivative_filter_fc_hz, float control_freq_hz);
 void wheel_pid_init(wheel_pid_t *pid, const pid_gains_t *gains, float command_limit_pct, float integrator_limit_pct);

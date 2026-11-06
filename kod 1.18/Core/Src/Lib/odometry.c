@@ -1,6 +1,5 @@
 #include "odometry.h"
 
-
 static int32_t last_count_left  = 0;
 static int32_t last_count_right = 0;
 

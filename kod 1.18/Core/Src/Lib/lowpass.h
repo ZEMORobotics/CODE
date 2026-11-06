@@ -9,7 +9,9 @@
 #define LIB_LOWPASS_H_
 
 #include <math.h>
+
 #define TWO_PI_F 6.283185307179586f
+#define SPEED_LPF_FC_HZ       30.0f
 
 static inline float lowpass_coefficient(float fc_hz, float sample_freq_hz)
 {

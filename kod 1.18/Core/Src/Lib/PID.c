@@ -1,5 +1,9 @@
 #include "PID.h"
 
+wheel_pid_t pid_left;
+wheel_pid_t pid_right;
+pid_gains_t wheel_gains;
+
 void wheel_pid_gains_init(pid_gains_t *gains, float kp, float ki, float kd, float derivative_filter_fc_hz, float control_freq_hz)
 {
     gains->proportional_gain = kp;

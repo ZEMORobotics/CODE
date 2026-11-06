@@ -1,10 +1,5 @@
 #include "can_comm.h"
 
-
-extern wheel_pid_t pid_left;
-extern wheel_pid_t pid_right;
-extern pid_gains_t wheel_gains;
-
 volatile float can_ref_speed_left  = 0.0f;
 volatile float can_ref_speed_right = 0.0f;
 
