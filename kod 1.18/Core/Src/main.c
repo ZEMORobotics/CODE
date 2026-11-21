@@ -64,6 +64,17 @@ volatile static float meas_speed_right = 0.0f;
 volatile static float cmd_left  = 0.0f;          /* % maks. PWM-a, -100..+100 */
 volatile static float cmd_right = 0.0f;
 
+FDCAN_TxHeaderTypeDef TxHeader;
+uint8_t TxData[8];
+
+// Can Debug variables
+volatile HAL_StatusTypeDef tx_result;
+volatile uint32_t tx_error;
+volatile uint32_t tx_free;
+FDCAN_ProtocolStatusTypeDef can_status;
+
+volatile uint32_t can_rx_level;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -84,8 +95,17 @@ static void MPU_Config(void);
   */
 int main(void)
 {
+
+  /* USER CODE BEGIN 1 */
+
+  /* USER CODE END 1 */
+
+  /* MPU Configuration--------------------------------------------------------*/
   MPU_Config();
 
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
@@ -110,8 +130,6 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM7_Init();
   MX_FDCAN1_Init();
-
-
   /* USER CODE BEGIN 2 */
 
   encoder_init();
@@ -124,18 +142,42 @@ int main(void)
   wheel_pid_init(&pid_right, &wheel_gains, PID_COMMAND_LIMIT_PCT, PID_INTEGRATOR_LIMIT_PCT);
 
   can_comm_init();
-  can_comm_startup_flush();
+//  can_comm_startup_flush();
+  TxHeader.Identifier = 123;
+  TxHeader.IdType = FDCAN_STANDARD_ID;
+  TxHeader.TxFrameType = FDCAN_DATA_FRAME;
+  TxHeader.DataLength = FDCAN_DLC_BYTES_8;
+  TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+  TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
+  TxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  TxHeader.MessageMarker = 0;
+
 
   HAL_TIM_Base_Start_IT(&htim7);
+
+  for (int i = 0; i < 8; i++) {
+	  TxData[i] = (uint8_t)1;
+  }
+
   /* USER CODE END 2 */
 
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  can_rx_level = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_11);
+	  tx_result = HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, TxData);
+	  tx_error = hfdcan1.ErrorCode;
 
-	  can_comm_task();
+
+	  HAL_Delay(1000);
+	  tx_free = HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan1);
+	  HAL_FDCAN_GetProtocolStatus(&hfdcan1, &can_status);
+//	  can_comm_task();
   }
   /* USER CODE END 3 */
 }
